@@ -1,0 +1,21 @@
+name: Rust
+
+on: [push, pull_request]
+
+jobs:
+  default:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: rustup component add clippy rustfmt
+    - uses: actions-rs/cargo@v1
+      with:
+        command: build
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+    - uses: actions-rs/clippy-check@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-features
+    - run: cargo fmt -- --check
