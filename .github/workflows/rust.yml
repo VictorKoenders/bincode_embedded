@@ -3,24 +3,19 @@ name: Rust
 on: [push, pull_request]
 
 jobs:
-  build:
+  clippy_check:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
-    - uses: icepuma/rust-action@master
-      name: Cargo build
+    - run: rustup component add clippy rustfmt
+    - uses: actions-rs/cargo@v1
       with:
-        args: cargo build --verbose
-    - uses: icepuma/rust-action@master
-      name: Cargo test
+        command: build
+    - uses: actions-rs/cargo@v1
       with:
-        args: cargo test --verbose
-    - uses: icepuma/rust-action@master
-      name: Rustfmt
+        command: test
+    - uses: actions-rs/clippy-check@v1
       with:
-        args: cargo fmt -- --check
-    - uses: icepuma/rust-action@master
-      name: Clippy
-      with:
-        args: cargo clippy -- -Dwarnings
+        token: ${{ secrets.GITHUB_TOKEN }}
+        args: --all-features
+    - run: cargo fmt -- --check
