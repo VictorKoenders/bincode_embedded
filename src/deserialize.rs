@@ -47,7 +47,7 @@ impl<'a, R: CoreRead<'a>> core::fmt::Display for DeserializeError<'a, R> {
 
 impl<'a, R: CoreRead<'a>> Error for DeserializeError<'a, R> {
     fn custom<T: core::fmt::Display>(_cause: T) -> Self {
-        unimplemented!()
+        panic!("Custom error thrown: {}", _cause);
     }
 }
 
@@ -194,7 +194,7 @@ impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserial
             .map_err(DeserializeError::Read)?;
         let res = str::from_utf8(buf)?;
 
-        visitor.visit_str(res)
+        visitor.visit_borrowed_str(res)
     }
 
     fn deserialize_string<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -207,7 +207,7 @@ impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserial
             .reader
             .read_range(length)
             .map_err(DeserializeError::Read)?;
-        visitor.visit_bytes(buf)
+        visitor.visit_borrowed_bytes(buf)
     }
 
     fn deserialize_byte_buf<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {

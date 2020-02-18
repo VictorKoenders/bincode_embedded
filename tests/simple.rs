@@ -16,7 +16,7 @@ pub struct TestStruct {
 }
 
 #[test]
-fn simple() {
+fn simple_struct() {
     let s = TestStruct {
         a: 1,
         b: 2,
@@ -33,6 +33,20 @@ fn simple() {
     println!("Buffer: {:?}", writer.written_buffer());
 
     let deserialized: TestStruct =
+        deserialize::<_, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
+    assert_eq!(s, deserialized);
+}
+
+#[test]
+fn simple_tuple() {
+    let s = (1u16, 2u32, &b"test"[..], "tesT");
+
+    let mut buffer = [0u8; 100];
+    let mut writer = BufferWriter::new(&mut buffer);
+    serialize::<_, _, byteorder::NetworkEndian>(&s, &mut writer).unwrap();
+    println!("Buffer: {:?}", writer.written_buffer());
+
+    let deserialized: (u16, u32, &[u8], &str) =
         deserialize::<_, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
     assert_eq!(s, deserialized);
 }
