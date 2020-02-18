@@ -21,14 +21,14 @@ pub trait CoreWrite {
     }
 }
 
-pub trait CoreRead {
+pub trait CoreRead<'a> {
     type Error;
     fn read(&mut self) -> Result<u8, Self::Error> {
         let buff = self.read_range(1)?;
         Ok(buff[0])
     }
 
-    fn read_range(&mut self, len: usize) -> Result<&[u8], Self::Error>;
+    fn read_range(&mut self, len: usize) -> Result<&'a [u8], Self::Error>;
 }
 
 pub(crate) type EnumVariantType = u8;
@@ -72,10 +72,10 @@ impl CoreWrite for BufferWriter<'_> {
     }
 }
 
-impl<'a> CoreRead for &'a [u8] {
+impl<'a> CoreRead<'a> for &'a [u8] {
     type Error = ();
 
-    fn read_range(&mut self, len: usize) -> Result<&[u8], Self::Error> {
+    fn read_range(&mut self, len: usize) -> Result<&'a [u8], Self::Error> {
         let result = &self[..len];
         *self = &self[len..];
         Ok(result)

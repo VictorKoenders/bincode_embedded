@@ -1,14 +1,28 @@
+#![allow(unused_mut, dead_code, unused_variables)]
+
 use super::*;
 use core::marker::PhantomData;
 use core::str;
 use serde::de::*;
 use serde::serde_if_integer128;
 
-pub fn deserialize<'a, T: Deserialize<'a>, R: CoreRead + 'a>(reader: R) -> Result<T, R::Error> {
-    unimplemented!();
+pub fn deserialize<
+    'a,
+    T: Deserialize<'a>,
+    R: CoreRead<'a> + 'a,
+    B: byteorder::ByteOrder + 'static,
+>(
+    reader: R,
+) -> Result<T, DeserializeError<'a, R>> {
+    let mut deserializer = Deserializer::<'a, R, B> {
+        reader,
+        pd: PhantomData,
+    };
+    let result = T::deserialize(&mut deserializer);
+    result
 }
 
-pub enum DeserializeError<R: CoreRead> {
+pub enum DeserializeError<'a, R: CoreRead<'a>> {
     Read(R::Error),
     InvalidBoolValue(u8),
     InvalidCharEncoding,
@@ -16,31 +30,31 @@ pub enum DeserializeError<R: CoreRead> {
     InvalidOptionValue(u8),
 }
 
-impl<R: CoreRead> From<str::Utf8Error> for DeserializeError<R> {
+impl<'a, R: CoreRead<'a>> From<str::Utf8Error> for DeserializeError<'a, R> {
     fn from(err: str::Utf8Error) -> Self {
         Self::Utf8(err)
     }
 }
 
-impl<R: CoreRead> core::fmt::Debug for DeserializeError<R> {
+impl<'a, R: CoreRead<'a>> core::fmt::Debug for DeserializeError<'a, R> {
     fn fmt(&self, _fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
         unimplemented!();
     }
 }
 
-impl<R: CoreRead> core::fmt::Display for DeserializeError<R> {
+impl<'a, R: CoreRead<'a>> core::fmt::Display for DeserializeError<'a, R> {
     fn fmt(&self, _fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
         unimplemented!();
     }
 }
 
-impl<R: CoreRead> Error for DeserializeError<R> {
+impl<'a, R: CoreRead<'a>> Error for DeserializeError<'a, R> {
     fn custom<T: core::fmt::Display>(_cause: T) -> Self {
         unimplemented!()
     }
 }
 
-fn get_slice_length<R: CoreRead, B: byteorder::ByteOrder + 'static>(
+fn get_slice_length<'a, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static>(
     reader: &mut R,
 ) -> Result<usize, R::Error> {
     let buf = reader.read_range(2)?;
@@ -48,7 +62,7 @@ fn get_slice_length<R: CoreRead, B: byteorder::ByteOrder + 'static>(
     Ok(len as usize)
 }
 
-fn get_str_length<R: CoreRead, B: byteorder::ByteOrder + 'static>(
+fn get_str_length<'a, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static>(
     reader: &mut R,
 ) -> Result<usize, R::Error> {
     let buf = reader.read_range(2)?;
@@ -56,7 +70,7 @@ fn get_str_length<R: CoreRead, B: byteorder::ByteOrder + 'static>(
     Ok(len as usize)
 }
 
-fn get_seq_len<R: CoreRead, B: byteorder::ByteOrder + 'static>(
+fn get_seq_len<'a, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static>(
     reader: &mut R,
 ) -> Result<usize, R::Error> {
     let buf = reader.read_range(2)?;
@@ -64,21 +78,21 @@ fn get_seq_len<R: CoreRead, B: byteorder::ByteOrder + 'static>(
     Ok(len as usize)
 }
 
-pub struct Deserializer<R: CoreRead, B: byteorder::ByteOrder + 'static> {
+pub struct Deserializer<'a, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> {
     reader: R,
-    pd: PhantomData<B>,
+    pd: PhantomData<&'a B>,
 }
 
-impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
-    for &'a mut Deserializer<R, B>
+impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
+    for &'b mut Deserializer<'a, R, B>
 {
-    type Error = DeserializeError<R>;
+    type Error = DeserializeError<'a, R>;
 
-    fn deserialize_any<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_any<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         unimplemented!()
     }
 
-    fn deserialize_bool<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_bool<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let value: u8 = serde::Deserialize::deserialize(self)?;
         match value {
             1 => visitor.visit_bool(true),
@@ -87,71 +101,71 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         }
     }
 
-    fn deserialize_i8<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i8<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let val = self.reader.read().map_err(DeserializeError::Read)?;
         visitor.visit_i8(val as i8)
     }
 
-    fn deserialize_i16<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i16<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(2).map_err(DeserializeError::Read)?;
         visitor.visit_i16(B::read_i16(&buffer))
     }
 
-    fn deserialize_i32<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i32<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(4).map_err(DeserializeError::Read)?;
         visitor.visit_i32(B::read_i32(&buffer))
     }
 
-    fn deserialize_i64<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_i64<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(8).map_err(DeserializeError::Read)?;
         visitor.visit_i64(B::read_i64(&buffer))
     }
 
     serde_if_integer128! {
-        fn deserialize_i128<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        fn deserialize_i128<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
             let buffer = self.reader.read_range(16).map_err(DeserializeError::Read)?;
             visitor.visit_i128(B::read_i128(&buffer))
         }
     }
 
-    fn deserialize_u8<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u8<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let val = self.reader.read().map_err(DeserializeError::Read)?;
         visitor.visit_u8(val)
     }
 
-    fn deserialize_u16<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u16<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(2).map_err(DeserializeError::Read)?;
         visitor.visit_u16(B::read_u16(&buffer))
     }
 
-    fn deserialize_u32<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u32<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(4).map_err(DeserializeError::Read)?;
         visitor.visit_u32(B::read_u32(&buffer))
     }
 
-    fn deserialize_u64<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_u64<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(8).map_err(DeserializeError::Read)?;
         visitor.visit_u64(B::read_u64(&buffer))
     }
 
     serde_if_integer128! {
-        fn deserialize_u128<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        fn deserialize_u128<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
             let buffer = self.reader.read_range(16).map_err(DeserializeError::Read)?;
             visitor.visit_u128(B::read_u128(&buffer))
         }
     }
 
-    fn deserialize_f32<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_f32<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(4).map_err(DeserializeError::Read)?;
         visitor.visit_f32(B::read_f32(&buffer))
     }
 
-    fn deserialize_f64<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_f64<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let buffer = self.reader.read_range(8).map_err(DeserializeError::Read)?;
         visitor.visit_f64(B::read_f64(&buffer))
     }
 
-    fn deserialize_char<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_char<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let mut buf = [0u8; 4];
 
         // Look at the first byte to see how many bytes must be read
@@ -174,7 +188,7 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         visitor.visit_char(res)
     }
 
-    fn deserialize_str<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_str<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let length = get_str_length::<R, B>(&mut self.reader).map_err(DeserializeError::Read)?;
         let buf = self
             .reader
@@ -189,7 +203,7 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         self.deserialize_str(visitor)
     }
 
-    fn deserialize_bytes<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_bytes<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let length = get_slice_length::<R, B>(&mut self.reader).map_err(DeserializeError::Read)?;
         let buf = self
             .reader
@@ -198,11 +212,11 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         visitor.visit_bytes(buf)
     }
 
-    fn deserialize_byte_buf<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_byte_buf<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         self.deserialize_bytes(visitor)
     }
 
-    fn deserialize_option<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_option<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let val = self.reader.read().map_err(DeserializeError::Read)?;
         if val == 0 {
             visitor.visit_none()
@@ -213,7 +227,7 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         }
     }
 
-    fn deserialize_unit<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_unit<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         visitor.visit_unit()
     }
 
@@ -233,9 +247,9 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         visitor.visit_newtype_struct(self)
     }
 
-    fn deserialize_seq<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_seq<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         let len = get_seq_len::<R, B>(&mut self.reader).map_err(DeserializeError::Read)?;
-        unimplemented!()
+        self.deserialize_tuple(len, visitor)
     }
 
     fn deserialize_tuple<V: Visitor<'a>>(
@@ -243,7 +257,43 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         len: usize,
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        struct Access<'a, 'b, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> {
+            deserializer: &'b mut Deserializer<'a, R, B>,
+            len: usize,
+        }
+
+        impl<'a, 'b, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> serde::de::SeqAccess<'a>
+            for Access<'a, 'b, R, B>
+        {
+            type Error = DeserializeError<'a, R>;
+
+            fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error>
+            where
+                T: serde::de::DeserializeSeed<'a>,
+            {
+                if self.len > 0 {
+                    self.len -= 1;
+                    let value = serde::de::DeserializeSeed::deserialize(
+                        seed,
+                        &mut *self.deserializer,
+                    )?;
+                    Ok(Some(value))
+                } else {
+                    Ok(None)
+                }
+            }
+
+            fn size_hint(&self) -> Option<usize> {
+                Some(self.len)
+            }
+        }
+
+        let access: Access::<'a, 'b, R, B> = Access {
+            deserializer: self,
+            len,
+        };
+        
+        visitor.visit_seq(access)
     }
 
     fn deserialize_tuple_struct<V: Visitor<'a>>(
@@ -255,7 +305,7 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         unimplemented!()
     }
 
-    fn deserialize_map<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_map<V: Visitor<'a>>(mut self, visitor: V) -> Result<V::Value, Self::Error> {
         unimplemented!()
     }
 
@@ -267,7 +317,7 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
         fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        self.deserialize_tuple(fields.len(), visitor)
     }
 
     /// Hint that the `Deserialize` type is expecting an enum value with a
@@ -283,7 +333,10 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
 
     /// Hint that the `Deserialize` type is expecting the name of a struct
     /// field or the discriminant of an enum variant.
-    fn deserialize_identifier<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_identifier<V: Visitor<'a>>(
+        mut self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
         unimplemented!()
     }
 
@@ -291,7 +344,10 @@ impl<'a, R: CoreRead, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
     /// doesn't matter because it is ignored.
     ///
     /// Deserializers for non-self-describing formats may not support this mode.
-    fn deserialize_ignored_any<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+    fn deserialize_ignored_any<V: Visitor<'a>>(
+        mut self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
         unimplemented!()
     }
 

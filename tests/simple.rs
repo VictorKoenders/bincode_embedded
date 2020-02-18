@@ -32,6 +32,7 @@ fn simple() {
     serialize::<_, _, byteorder::NetworkEndian>(&s, &mut writer).unwrap();
     println!("Buffer: {:?}", writer.written_buffer());
 
-    let deserialized: TestStruct = deserialize(&buffer[..]).unwrap();
+    let deserialized: TestStruct =
+        deserialize::<_, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
     assert_eq!(s, deserialized);
 }
