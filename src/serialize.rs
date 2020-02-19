@@ -1,7 +1,9 @@
 use super::*;
 use core::marker::PhantomData;
-use serde::ser::{Serializer as _, *};
-use serde::serde_if_integer128;
+use serde::{
+    ser::{Serializer as _, *},
+    serde_if_integer128,
+};
 
 pub fn serialize<T: serde::Serialize, W: CoreWrite, B: byteorder::ByteOrder + 'static>(
     value: &T,

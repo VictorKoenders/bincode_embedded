@@ -1,9 +1,35 @@
 use super::*;
-use core::marker::PhantomData;
-use core::str;
-use serde::de::*;
-use serde::serde_if_integer128;
+use core::{marker::PhantomData, str};
+use serde::{de::*, serde_if_integer128};
 
+/// Deserialize a given object from the given [CoreRead] object.
+///
+/// Rust will detect the first two generic arguments automatically. The third generic argument
+/// must be a valid `byteorder::ByteOrder` type. Normally this can be implemented like this:
+///
+/// `let val: Type = deserialize::<_, _, byteorder::NetworkEndian>(&reader)?;`
+///
+/// or
+///
+/// `let val = deserialize::<Type, _, byteorder::NetworkEndian>(&reader)?;`
+///
+/// ```
+/// # extern crate serde_derive;
+/// # use serde_derive::Deserialize;
+/// # use bincode_embedded::deserialize;
+///
+/// #[derive(Deserialize, PartialEq, Debug)]
+/// pub struct SomeStruct {
+///     a: u8,
+///     b: u8,
+/// }
+/// let buffer: [u8; 2] = [
+///     3, // a
+///     6, // b
+/// ];
+/// let val = deserialize::<SomeStruct, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
+/// assert_eq!(val, SomeStruct { a: 3, b: 6 });
+/// ```
 pub fn deserialize<
     'a,
     T: Deserialize<'a>,

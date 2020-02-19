@@ -32,6 +32,16 @@ fn simple_struct() {
     serialize::<_, _, byteorder::NetworkEndian>(&s, &mut writer).unwrap();
     println!("Buffer: {:?}", writer.written_buffer());
 
+    // type         size
+    // u8           1
+    // u16          2
+    // u32          4
+    // u64          8
+    // u128         16
+    // Option<u8>   1 + 1
+    // [u8; 3]      3 (fixed array so no length)
+    assert_eq!(1 + 2 + 4 + 8 + 16 + 1 + 1 + 3, writer.written_len());
+
     let deserialized: TestStruct =
         deserialize::<_, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
     assert_eq!(s, deserialized);
@@ -45,6 +55,13 @@ fn simple_tuple() {
     let mut writer = BufferWriter::new(&mut buffer);
     serialize::<_, _, byteorder::NetworkEndian>(&s, &mut writer).unwrap();
     println!("Buffer: {:?}", writer.written_buffer());
+
+    // type         size
+    // u16          2
+    // u32          4
+    // &[u8]        2 (len) + 4 (byte content)
+    // &str         2 (len) + 4 (str content)
+    assert_eq!(2 + 4 + 2 + 4 + 2 + 4, writer.written_len());
 
     let deserialized: (u16, u32, &[u8], &str) =
         deserialize::<_, _, byteorder::NetworkEndian>(&buffer[..]).unwrap();
