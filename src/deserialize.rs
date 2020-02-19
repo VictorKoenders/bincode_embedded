@@ -70,14 +70,28 @@ impl<'a, R: CoreRead<'a>> From<str::Utf8Error> for DeserializeError<'a, R> {
 }
 
 impl<'a, R: CoreRead<'a>> core::fmt::Debug for DeserializeError<'a, R> {
-    fn fmt(&self, _fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
-        unimplemented!();
+    fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match self {
+            DeserializeError::Read(e) => write!(fmt, "{:?}", e),
+            DeserializeError::InvalidBoolValue(v) => {
+                write!(fmt, "Unknown bool value, got {}, expected 0 or 1", v)
+            }
+            DeserializeError::InvalidCharEncoding => write!(fmt, "Invalid character encoding"),
+            DeserializeError::Utf8(e) => write!(
+                fmt,
+                "Could not deserialize the value as a value UTF8 string: {:?}",
+                e
+            ),
+            DeserializeError::InvalidOptionValue(e) => {
+                write!(fmt, "Invalid Option value, got {}, expected 0 or 1", e)
+            }
+        }
     }
 }
 
 impl<'a, R: CoreRead<'a>> core::fmt::Display for DeserializeError<'a, R> {
-    fn fmt(&self, _fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
-        unimplemented!();
+    fn fmt(&self, fmt: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(fmt, "{:?}", self)
     }
 }
 
@@ -118,13 +132,13 @@ pub struct Deserializer<'a, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'sta
     pd: PhantomData<&'a B>,
 }
 
-impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
+impl<'a, 'b, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> serde::Deserializer<'a>
     for &'b mut Deserializer<'a, R, B>
 {
     type Error = DeserializeError<'a, R>;
 
     fn deserialize_any<V: Visitor<'a>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        panic!("Deserialize any not supported")
     }
 
     fn deserialize_bool<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
@@ -333,14 +347,56 @@ impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserial
     fn deserialize_tuple_struct<V: Visitor<'a>>(
         self,
         _name: &'static str,
-        _len: usize,
-        _visitor: V,
+        len: usize,
+        visitor: V,
     ) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        self.deserialize_tuple(len, visitor)
     }
 
-    fn deserialize_map<V: Visitor<'a>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+    fn deserialize_map<V: Visitor<'a>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        struct Access<'a, 'b, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> {
+            deserializer: &'b mut Deserializer<'a, R, B>,
+            len: usize,
+        }
+
+        impl<'a, 'b, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static>
+            serde::de::MapAccess<'a> for Access<'a, 'b, R, B>
+        {
+            type Error = DeserializeError<'a, R>;
+
+            fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error>
+            where
+                K: serde::de::DeserializeSeed<'a>,
+            {
+                if self.len > 0 {
+                    self.len -= 1;
+                    let key =
+                        serde::de::DeserializeSeed::deserialize(seed, &mut *self.deserializer)?;
+                    Ok(Some(key))
+                } else {
+                    Ok(None)
+                }
+            }
+
+            fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+            where
+                V: serde::de::DeserializeSeed<'a>,
+            {
+                let value = serde::de::DeserializeSeed::deserialize(seed, &mut *self.deserializer)?;
+                Ok(value)
+            }
+
+            fn size_hint(&self) -> Option<usize> {
+                Some(self.len)
+            }
+        }
+
+        let len = serde::Deserialize::deserialize(&mut *self)?;
+
+        visitor.visit_map(Access {
+            deserializer: self,
+            len,
+        })
     }
 
     /// Hint that the `Deserialize` type is expecting a struct with a particular
@@ -368,7 +424,7 @@ impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserial
     /// Hint that the `Deserialize` type is expecting the name of a struct
     /// field or the discriminant of an enum variant.
     fn deserialize_identifier<V: Visitor<'a>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        panic!("Deserialize_identifier not supported")
     }
 
     /// Hint that the `Deserialize` type needs to deserialize a value whose type
@@ -376,7 +432,7 @@ impl<'a, 'b, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static> serde::Deserial
     ///
     /// Deserializers for non-self-describing formats may not support this mode.
     fn deserialize_ignored_any<V: Visitor<'a>>(self, _visitor: V) -> Result<V::Value, Self::Error> {
-        unimplemented!()
+        panic!("Deserialize_ignored_any not supported")
     }
 
     fn is_human_readable(&self) -> bool {

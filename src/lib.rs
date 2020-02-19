@@ -67,7 +67,7 @@ pub trait CoreWrite {
 /// This trait does not support async reading yet. Reads are expected to be blocking.
 pub trait CoreRead<'a> {
     /// The error that this reader can encounter
-    type Error;
+    type Error: core::fmt::Debug;
 
     /// Read a single byte from the current buffer. This is auto-implemented to read a &[u8; 1]
     /// from [read_range] and return the first value.

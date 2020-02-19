@@ -353,7 +353,7 @@ impl<'a, W: CoreWrite, B: byteorder::ByteOrder + 'static> serde::Serializer
     where
         T: core::fmt::Display,
     {
-        panic!("Unimplemented: collect_str")
+        panic!("Unimplemented: Serialize::collect_str")
     }
 
     fn is_human_readable(&self) -> bool {
