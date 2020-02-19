@@ -5,6 +5,17 @@ use serde::{
     serde_if_integer128,
 };
 
+/// Serialize a given `T` type into a given `CoreWrite` writer with the given `B` byte order.
+///
+/// `T` can be any value that derives `serde::Serialize`.
+///
+/// `W` can be any value that implements [CoreWrite]. This can e.g. be a fixed-size array, or a
+/// serial writer.
+///
+/// `B` can be any type that implements [byteorder::ByteOrder]. This includes:
+/// - BigEndian
+/// - LittleEndian
+/// - NetworkEndian.
 pub fn serialize<T: serde::Serialize, W: CoreWrite, B: byteorder::ByteOrder + 'static>(
     value: &T,
     writer: W,
@@ -67,8 +78,12 @@ fn serialize_struct_variant<W: CoreWrite, B: byteorder::ByteOrder + 'static>(
     serializer.serialize_u8(variant_index as StructVariantType)
 }
 
+/// Any error that can be thrown while serializing a type
 pub enum SerializeError<W: CoreWrite> {
+    /// Generic write error. See the inner `CoreWrite::Error` for more info
     Write(W::Error),
+
+    /// A sequence (e.g. `&str` or `&[u8]`) was requested to serialize, but it has no length.
     SequenceMustHaveLength,
 }
 
@@ -93,6 +108,8 @@ impl<W: CoreWrite> Error for SerializeError<W> {
     }
 }
 
+/// A serializer that can serialize any value that implements `serde::Serialize` into a given
+/// [CoreWrite] writer.
 pub struct Serializer<W: CoreWrite, B: byteorder::ByteOrder + 'static> {
     writer: W,
     pd: PhantomData<B>,
@@ -344,6 +361,7 @@ impl<'a, W: CoreWrite, B: byteorder::ByteOrder + 'static> serde::Serializer
     }
 }
 
+/// Internal struct needed for serialization.
 pub struct Compound<'a, W: CoreWrite, B: byteorder::ByteOrder + 'static> {
     ser: &'a mut Serializer<W, B>,
     pd: PhantomData<B>,

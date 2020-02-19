@@ -45,11 +45,21 @@ pub fn deserialize<
     T::deserialize(&mut deserializer)
 }
 
+/// Errors that can occur while deserializing
 pub enum DeserializeError<'a, R: CoreRead<'a>> {
+    /// Failed to read from the provided `CoreRead`. The inner exception is given.
     Read(R::Error),
+
+    /// Invalid bool value. Only `0` and `1` are valid values.
     InvalidBoolValue(u8),
+
+    /// Invalid character encoding while trying to deserialize a `&str`.
     InvalidCharEncoding,
+
+    /// UTF8 error while trying to deserialize a `&str`
     Utf8(str::Utf8Error),
+
+    /// Invalid value for the `Option` part of `Option<T>`. Only `0` and `1` are accepted values.
     InvalidOptionValue(u8),
 }
 
@@ -101,6 +111,8 @@ fn get_seq_len<'a, R: CoreRead<'a>, B: byteorder::ByteOrder + 'static>(
     Ok(len as usize)
 }
 
+/// A deserializer that can be used to deserialize any `serde::Deserialize` type from a given
+/// [CoreRead] reader.
 pub struct Deserializer<'a, R: CoreRead<'a> + 'a, B: byteorder::ByteOrder + 'static> {
     reader: R,
     pd: PhantomData<&'a B>,
